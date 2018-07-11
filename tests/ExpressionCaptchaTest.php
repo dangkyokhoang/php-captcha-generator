@@ -8,68 +8,52 @@ use PHPUnit\Framework\TestCase;
 class ExpressionCaptchaTest extends TestCase
 {
     /**
-     * Set the following constant value to false if eval() is disabled.
-     * @var int tells whether to use eval() to test expression results.
-     */
-    const USE_EVAL_TO_TEST = true;
-
-    /**
-     * Since it needs to test thousands of expressions,
-     * challenge creation and assertion methods are to be tested in this test for efficiency.
+     * Since testing needs to do thousands of assertions,
+     * captcha generating and verifying are to be tested in this test for efficiency.
      */
     public function testCreationAssertion()
     {
-        for ($difficulty = 0; $difficulty <= 2; $difficulty++) {
-            for ($i = 0; $i < 1000; $i++) {
-                // Captcha size
-                $size = mt_rand(2, 100);
+        /**
+         * If eval() is enabled, ExpressionCaptcha::resolveString() can be tested
+         * Note that disabling eval() will only affect this test,
+         *  since ExpressionCaptcha::resolveString() should always work without using eval().
+         * @see ExpressionCaptcha::resolveString()
+         *
+         * @var boolean that tells whether eval() is enabled.
+         * */
+        $eval_enabled = @eval('return true;');
+        // To replace expression operators to equivalent PHP operators
+        $expression_operators = [
+            ExpressionCaptcha::ADDITION,
+            ExpressionCaptcha::SUBTRACTION,
+            ExpressionCaptcha::MULTIPLICATION,
+            ExpressionCaptcha::DIVISION
+        ];
+        $php_operators = ['+', '-', '*', '/'];
 
-                $captcha = new ExpressionCaptcha($size, $difficulty);
-                /**
-                 * @var ExpressionCaptcha the Captcha instance.
-                 */
-                $challenge = $captcha->createChallenge();
+        for ($i = 0; $i < 1000; $i++) {
+            $size = mt_rand(ExpressionCaptcha::MIN_SIZE, 100);
+            $level = mt_rand(ExpressionCaptcha::LEVEL_RANGE[0], ExpressionCaptcha::LEVEL_RANGE[1]);
+            $captcha = new ExpressionCaptcha($size, $level);
 
-                // createChallenge() must return the captcha instance
-                $this->assertEquals($captcha, $challenge);
+            // Test ExpressionCaptcha::generate()
+            $this->assertEquals($captcha, $captcha->generate());
+            // __toString()
+            $this->assertEquals($size, (strlen($captcha) + 1) / 2);
 
-                // Challenge string format: 1+2-3x4x5:6
-                // size === number of numbers in the expression
-                // string length === size + (number of operators in the expression)
-                //               === size + (size - 1)
-                //               === 2 * size - 1
-                // __toString() is called
-                $this->assertEquals(2 * $size - 1, strlen($challenge));
-
-                $value = $challenge->getResolvedValue();
-
-                // Expression's value mustn't exceed the bounds
-                $this->assertLessThanOrEqual(($difficulty + 1) * 10, abs($value));
-
-                // Test the test() method
-                // __toString() is called
-                $this->assertTrue(ExpressionCaptcha::test($challenge, $value));
-
-                // Test the expression's value using eval()
-                if (self::USE_EVAL_TO_TEST) {
-                    // Convert expression's operators to PHP operators
-                    $php_expression = str_replace([
-                        ExpressionCaptcha::ADDITION,
-                        ExpressionCaptcha::SUBTRACTION,
-                        ExpressionCaptcha::MULTIPLICATION,
-                        ExpressionCaptcha::DIVISION
-                    ], [
-                        '+',
-                        '-',
-                        '*',
-                        '/'
-                    ], $challenge);
-
-                    $this->assertEquals(eval("return $php_expression;"), $value);
-                }
+            // Test ExpressionCaptcha::resolveString()
+            $resolved_value = $captcha->resolve();
+            // __toString()
+            $this->assertEquals($resolved_value, ExpressionCaptcha::resolveString($captcha));
+            if ($eval_enabled) {
+                // Convert expression's operators to PHP equivalent operators
+                $php_expression = str_replace($expression_operators, $php_operators, $captcha);
+                $this->assertEquals(eval("return $php_expression;"), $resolved_value);
             }
         }
     }
-
-    // See StringCaptchaTest for testToImage() test
+    /**
+     * @method testToImage()
+     * @see StringCaptchaTest::testToImage()
+     * */
 }

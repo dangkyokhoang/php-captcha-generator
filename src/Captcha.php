@@ -5,152 +5,205 @@ namespace Dkh;
 
 abstract class Captcha
 {
+    /**
+     * @var int captcha challenge size's minimum value.
+     * @see Captcha::$size
+     */
     const MIN_SIZE = 2;
-    const DIFFICULTY_RANGE = [0, 2];
-
+    /**
+     * @var array defining the difficulty level's value range.
+     */
+    const LEVEL_RANGE = [0, 2];
+    /**
+     * Typedef for captcha image option array.
+     * @typedef array ImageOptions
+     * @key int 'height' image height (optional).
+     * @key int[] 'fill' <RgbaColorArray> [A ?? 127] (optional).
+     * @key int[] 'color' <RgbaColorArray> [A ?? 0] font and stroke color (optional).
+     *
+     * Typedef for RGBA color array.
+     * @typedef array RgbaColorArray
+     * @enum int
+     * @key int 0 red component value 0-255.
+     * @key int 1 green component value 0-255.
+     * @key int 2 blue component value 0-255.
+     * @key double 3 real-world alpha component value 0-1,
+     *               see the link below for details;
+     *               this differentiates from the alpha parameter in imagecolorallocatealpha().
+     * @see {@link https://en.wikipedia.org/wiki/Alpha_compositing Alpha compositing}, imagecolorallocatealpha()
+     *
+     * @var array <ImageOptions> default captcha image options.
+     */
     const DEFAULT_IMAGE_OPTIONS = [
         'height' => 30,
+        'fill' => [0, 0, 0, 127],
         'color' => [0, 0, 0, 0],
-        'background_color' => [255, 255, 255, 127]
     ];
+    /**
+     * @var int image's minimum height
+     */
+    const MIN_IMAGE_HEIGHT = 20;
 
     /**
      * @var string captcha challenge.
      */
-    protected $challenge;
+    protected $challenge = '';
     /**
-     * @var int captcha challenge's size.
+     * Captcha challenge size might be interpreted differently by each type of captcha.
+     * @var int captcha challenge size.
      */
     protected $size;
     /**
-     * @var int captcha challenge's difficulty level.
+     * Captcha difficulty level, which is one of the following values:
+     *  int 0 - easy,
+     *  int 1 - normal (default),
+     *  int 2 - hard.
+     * @var int captcha challenge difficulty level.
      */
-    protected $difficulty;
+    protected $level;
 
     /**
      * Captcha constructor.
-     * @param int $size captcha challenge's size (optional).
-     * @param int $difficulty captcha challenge's difficulty level (optional).
+     * @param int $size (optional).
+     * @param int $level (optional).
+     * @see Captcha::$size, Captcha::$level, Captcha::MIN_SIZE, Captcha::LEVEL_RANGE
      */
-    public function __construct(int $size = 3, int $difficulty = 1)
+    public function __construct(int $size = 3, int $level = 1)
     {
-        $this->challenge = '';
         $this->size = max($size, self::MIN_SIZE);
-        $this->difficulty = min(max($difficulty, self::DIFFICULTY_RANGE[0]), self::DIFFICULTY_RANGE[1]);
+        $this->level = min(
+            max($level, self::LEVEL_RANGE[0]),
+            self::LEVEL_RANGE[1]
+        );
     }
 
     public function __toString()
     {
-        return $this->challenge;
+        return $this->challenge ?: $this->generate()->challenge;
     }
 
     /**
      * @param array $options
-     * @return string
-     * @see Captcha::createImage()
+     * @return string rendered PNG image data encoded with base64.
+     * @see Captcha::renderString()
      */
-    public function toImage(array $options = [])
+    public function render(array $options = []): string
     {
-        return self::createImage($this->challenge, $options);
+        // Though the parameter type is set,
+        // the instance's value is implicitly converted here.
+        // __toString()
+        return self::renderString((string)$this, $options);
     }
 
     /**
-     * Typedef for array $options.
-     * @typedef array $options
-     * @key int [height] image height (optional).
-     * @key int[] [color] RGB[A] font and stroke color(optional).
-     * @key int[] [background_color] RGB[A] (optional).
+     * Render string into captcha image.
+     * @param string $string
+     * @param array $options (optional).
+     * @return string rendered PNG image data encoded with base64.
      * @see Captcha::DEFAULT_IMAGE_OPTIONS
-     *
-     * Create Captcha image.
-     * @param string $challenge
-     * @param array $options (optional) (see above).
-     * @return string base64 PNG image.
      */
-    public static function createImage(string $challenge, array $options = [])
+    public static function renderString(string $string,
+                                        array $options = []): string
     {
-        $characters = str_split($challenge);
+        $characters = str_split($string);
         $count_characters = count($characters);
-
+        // Built-in font is used to draw text
         $font = 5;
-        $font_width = imagefontwidth($font);
-        $font_height = imagefontheight($font);
-
-        // Min image height = 20px
-        $height = max($options['height'] ?? self::DEFAULT_IMAGE_OPTIONS['height'], 20);
+        // Font width, height (imagefontwidth($font), imagefontheight($font));
+        $font_w = 9;
+        $font_h = 15;
+        // Image height, min = 20.
+        $height = max(
+            $options['height'] ?? self::DEFAULT_IMAGE_OPTIONS['height'],
+            self::MIN_IMAGE_HEIGHT
+        );
         // Character position tolerance
         $tolerance = intdiv($height, 10);
-        // Character size (source image)
-        $src_char_w = $font_width + $tolerance * 2;
-        $src_char_h = $font_height + $tolerance * 2;
-        // Character size (destination image)
-        $dst_char_w = intdiv($font_width * $height, $font_height);
+        // Character width, height (padding included) (source image)
+        $src_cw = $font_w + 2 * $tolerance;
+        $src_ch = $font_h + 2 * $tolerance;
+        // Character width (destination image)
+        $dst_cw = intdiv($font_w * $height, $font_h);
         // Image width
-        $width = $dst_char_w * $count_characters;
+        $width = $dst_cw * $count_characters;
 
-        $src_img = imagecreatetruecolor($src_char_w * $count_characters, $src_char_h);
+        $src_img = imagecreatetruecolor($count_characters * $src_cw, $src_ch);
         $dst_img = imagecreatetruecolor($width, $height);
         // Turn off color blending when copying image
         imagealphablending($dst_img, false);
         imagesavealpha($dst_img, true);
 
-        $color = $options['color'] ?? self::DEFAULT_IMAGE_OPTIONS['color'];
-        $color[3] = isset($color[3]) ? $color[3] : 0;
-        $color_id = imagecolorallocatealpha($src_img, $color[0], $color[1], $color[2], $color[3]);
-
-        $bg_color = $options['background_color'] ?? self::DEFAULT_IMAGE_OPTIONS['background_color'];
-        $bg_color[3] = isset($bg_color[3]) ? $bg_color[3] : 127;
-        $bg_color_id = imagecolorallocatealpha($src_img, $bg_color[0], $bg_color[1], $bg_color[2], $bg_color[3]);
+        $bg_color = $options['fill'] ?? self::DEFAULT_IMAGE_OPTIONS['fill'];
+        $bg_color_id = imagecolorallocatealpha(
+            $src_img,
+            $bg_color[0],
+            $bg_color[1],
+            $bg_color[2],
+            $bg_color[3] ?? self::DEFAULT_IMAGE_OPTIONS['fill'][3]
+        );
         imagefill($src_img, 0, 0, $bg_color_id);
-        imagefill($dst_img, 0, 0, $bg_color_id);
+        $color = $options['color'] ?? self::DEFAULT_IMAGE_OPTIONS['color'];
+        $color_id = imagecolorallocatealpha(
+            $src_img,
+            $color[0],
+            $color[1],
+            $color[2],
+            $color[3] ?? self::DEFAULT_IMAGE_OPTIONS['color'][3]
+        );
 
         for ($i = 0; $i < $count_characters; $i++) {
-            // The x-pos of the character's content box in the source image
-            $src_char_x = $src_char_w * $i;
-            // Draw the character inside its content box (with tolerance)
-            imagestring($src_img, $font, $src_char_x + $tolerance, $tolerance, $characters[$i], $color_id);
-
-            // Copy the character's box (copied tolerance <= tolerance)
-            // to the destination image.
-            $box_offset_x = mt_rand(0, $tolerance);
-            $box_offset_y = mt_rand(0, $tolerance);
-            $box_w = $font_width + ($tolerance - $box_offset_x) + mt_rand(0, $tolerance);
-            $box_h = $font_height + ($tolerance - $box_offset_y) + mt_rand(0, $tolerance);
+            // Offsets x of the character's content area in the source image
+            $src_cx = $i * $src_cw;
+            // Draw the character inside its content area
+            imagestring(
+                $src_img,
+                $font,
+                $src_cx + $tolerance,
+                $tolerance,
+                $characters[$i],
+                $color_id
+            );
+            // Copy offsets x, y relative to (from) the content area's position
+            $x_area = mt_rand(0, $tolerance);
+            $y_area = mt_rand(0, $tolerance);
+            $copy_w = $font_w + ($tolerance - $x_area) + mt_rand(0, $tolerance);
+            $copy_h = $font_h + ($tolerance - $y_area) + mt_rand(0, $tolerance);
             imagecopyresized(
                 $dst_img,
                 $src_img,
-                $dst_char_w * $i + mt_rand(-$tolerance, $tolerance),
-                mt_rand(-$tolerance, $tolerance),
-                $src_char_x + $box_offset_x,
-                $box_offset_y,
-                $dst_char_w,
+                $i * $dst_cw,
+                0,
+                $src_cx + $x_area,
+                $y_area,
+                $dst_cw,
                 $height,
-                $box_w,
-                $box_h
+                $copy_w,
+                $copy_h
             );
         }
 
         imagedestroy($src_img);
 
-        $cell_w = 10;
-        $cell_h = 10;
-        // For each row of the cell height in height
-        for ($y = 0; $y <= $height; $y += $cell_h) {
-            // For each column of the cell width in width
-            for ($x = 0; $x < $width - $cell_w; $x += $cell_w) {
-                // Start x = x +- 2
-                $start_x = $x + mt_rand(-2, 2);
-                // End x = x + cell width +- 2
-                $end_x = $x + $cell_w + mt_rand(-2, 2);
-                // Start y = y +- cell height
-                $start_y = $y + mt_rand(-$cell_h, $cell_h);
-                // End y = y +- cell height
-                $end_y = $y + mt_rand(-$cell_h, $cell_h);
-                imageline($dst_img, $start_x, $start_y, $end_x, $end_y, $color_id);
+        $step_w = 10;
+        $step_h = 10;
+        for ($y = 0; $y <= $height; $y += $step_h) {
+            for ($x = 0; $x < $width - $step_w; $x += $step_w) {
+                // x1 = x +- 2
+                $x1 = $x + mt_rand(-2, 2);
+                // x2 = next x +- 2
+                //    = x1 + step x +- 2
+                $x2 = $x + $step_w + mt_rand(-2, 2);
+                // y1 = y +- step y
+                $y1 = $y + mt_rand(-$step_h, $step_h);
+                // y2 = y +- step y
+                $y2 = $y + mt_rand(-$step_h, $step_h);
+
+                imageline($dst_img, $x1, $y1, $x2, $y2, $color_id);
             }
         }
 
         ob_start();
+
         imagepng($dst_img);
         imagedestroy($dst_img);
 
@@ -158,19 +211,19 @@ abstract class Captcha
     }
 
     /**
+     * Generate or regenerate captcha challenge.
      * @return $this
      */
-    abstract public function createChallenge();
+    abstract public function generate();
 
     /**
-     * @return string challenge's resolved value.
+     * @return mixed challenge's resolved value.
      */
-    abstract public function getResolvedValue();
+    abstract public function resolve();
 
     /**
-     * @param string $challenge
-     * @param string $input_value the [user] input value to test against the challenge.
-     * @return bool true if the challenge is resolved to the value, false otherwise.
+     * @param string $string
+     * @return mixed captcha challenge's resolved value.
      */
-    abstract public static function test(string $challenge, string $input_value): bool;
+    abstract public static function resolveString(string $string);
 }

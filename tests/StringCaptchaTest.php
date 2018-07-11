@@ -8,94 +8,90 @@ use PHPUnit\Framework\TestCase;
 class StringCaptchaTest extends TestCase
 {
     /**
-     * Since it needs to test thousands of captcha string,
-     * challenge creation and assertion methods are to be tested in this test for efficiency.
+     * Since testing needs to do thousands of assertions,
+     * captcha generating and verifying are to be tested in this test for efficiency.
      */
     public function testCreationAssertion()
     {
+        /**
+         * @var array contains the challenge pattern for each difficulty level.
+         */
         $challenge_patterns = [
+            // Alphabet characters only
             '/^[a-zA-Z]+$/',
+            // Word characters
             '/^\w+$/',
+            // Any non-linebreak characters
             '/^.+$/'
         ];
 
-        for ($difficulty = 0; $difficulty <= 2; $difficulty++) {
-            for ($i = 0; $i < 1000; $i++) {
-                $size = mt_rand(2, 1000);
+        for ($i = 0; $i < 1000; $i++) {
+            $size = mt_rand(StringCaptcha::MIN_SIZE, 100);
+            $level = mt_rand(StringCaptcha::LEVEL_RANGE[0], StringCaptcha::LEVEL_RANGE[1]);
+            $captcha = new StringCaptcha($size, $level);
 
-                $captcha = new StringCaptcha($size, $difficulty);
-                /**
-                 * @var StringCaptcha the Captcha instance.
-                 */
-                $challenge = $captcha->createChallenge();
+            // Test StringCaptcha::generate()
+            $this->assertEquals($captcha, $captcha->generate());
+            // __toString()
+            $this->assertEquals($size, strlen($captcha));
+            // __toString()
+            $this->assertRegExp($challenge_patterns[$level], $captcha);
 
-                // createChallenge() must return the captcha instance
-                $this->assertEquals($captcha, $challenge);
-
-                // Challenge string length === size
-                // __toString() is called
-                $this->assertEquals($size, strlen($challenge));
-
-                // __toString() is called
-                $this->assertEquals($challenge, $challenge->getResolvedValue());
-
-                // __toString() is called
-                $this->assertRegExp($challenge_patterns[$difficulty], $challenge);
-            }
+            // Test StringCaptcha::resolveString()
+            $resolved_value = $captcha->resolve();
+            // __toString()
+            $this->assertEquals($resolved_value, StringCaptcha::resolveString($captcha));
         }
     }
 
     public function testToImage()
     {
-        for ($i = 0; $i < 10; $i++) {
-            $size = mt_rand(StringCaptcha::MIN_SIZE, 100);
+        for ($i = 0; $i < 100; $i++) {
+            $size = mt_rand(StringCaptcha::MIN_SIZE, 10);
             // Image options
             $options = [
-                'height' => mt_rand(20, 50),
-                // Was unable to mixed two RGBA colors to write test
-                // that's why the color's alpha chanel [3] === 0
+                'height' => mt_rand(StringCaptcha::MIN_IMAGE_HEIGHT, 50),
                 'color' => [mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255), 0],
-                'background_color' => [mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 127)]
+                'fill' => [mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 127)]
             ];
-
             $captcha = new StringCaptcha($size);
-            $captcha->createChallenge();
 
-            $base64_img = $captcha->toImage($options);
-            $this->assertNotEmpty($base64_img);
+            $img_base64 = $captcha->render($options);
+            $this->assertNotEmpty($img_base64);
 
             // Test will fail if this produces any error
-            $img = imagecreatefromstring(base64_decode($base64_img));
+            $img = imagecreatefromstring(base64_decode($img_base64));
             $width = imagesx($img);
             $height = imagesy($img);
-            $min_height = $size * intdiv(imagefontwidth(5) * $options['height'], imagefontheight(5));
 
-            $this->assertGreaterThanOrEqual($min_height, $width);
+            $this->assertGreaterThanOrEqual(
+                $size * intdiv(9 * $options['height'], 15),
+                $width
+            );
             $this->assertEquals($options['height'], $height);
 
-            $count_text_or_line_pixels = 0;
+            $count_text_or_stroke_pixels = 0;
             $count_background_pixels = 0;
             for ($x = 0; $x < $width; $x++) {
-                $pixel_color_index = imagecolorat($img, $x, $height / 2);
-                $pixel_color = [
-                    ($pixel_color_index >> 16) & 0xff,
-                    ($pixel_color_index >> 8) & 0xff,
-                    $pixel_color_index & 0xff,
-                    ($pixel_color_index >> 24) & 0xff,
+                $color_index = imagecolorat($img, $x, $height / 2);
+                $color = [
+                    ($color_index >> 16) & 0xff,
+                    ($color_index >> 8) & 0xff,
+                    $color_index & 0xff,
+                    ($color_index >> 24) & 0xff
                 ];
-                if ($pixel_color === $options['color']) {
-                    $count_text_or_line_pixels += 1;
-                } elseif ($pixel_color === $options['background_color']) {
+                if ($color === $options['color']) {
+                    $count_text_or_stroke_pixels += 1;
+                } elseif ($color === $options['fill']) {
                     $count_background_pixels += 1;
                 } else {
-                    break;
+                    $this->assertEquals($options['fill'], $color);
                 }
             }
 
             imagedestroy($img);
-
-            $this->assertNotEmpty($count_text_or_line_pixels);
-            $this->assertEquals($width, $count_text_or_line_pixels + $count_background_pixels);
+            $this->assertNotEmpty($count_text_or_stroke_pixels);
+            $this->assertEquals($width, $count_text_or_stroke_pixels + $count_background_pixels);
         }
     }
 }

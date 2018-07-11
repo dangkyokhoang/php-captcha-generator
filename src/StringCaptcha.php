@@ -5,34 +5,34 @@ namespace Dkh;
 class StringCaptcha extends Captcha
 {
     /**
-     * @var array defines the character set for each difficulty level.
+     * @var array defines character set for each difficulty level.
      */
     const CHARACTER_MAP = [
-        // Easy challenge
+        // Easy
         [
-            // Alphabet characters in UPPERCASE (exclude: F, I, O, Q)
-            'A', 'B', 'C', 'D', 'E', 'G', 'H', 'J',
+            // Alphabet characters in UPPERCASE (excluding: D, F, G, I, O, Q, R, U)
+            'A', 'B', 'C', 'E', 'H', 'J',
+            'K', 'L', 'M', 'N', 'P', 'S', 'T',
+            'V', 'W', 'X', 'Y', 'Z',
+            // Alphabet characters in lowercase (excluding: e, f, i, j, l, o, p, r, u, y, z)
+            'a', 'b', 'c', 'd', 'g', 'h',
+            'k', 'm', 'n', 'q', 's', 't',
+            'v', 'w', 'x'
+        ],
+        // Normal
+        [
+            // Digits (excluding: 0, 1)
+            '2', '3', '4', '5', '6', '7', '8', '9',
+            // Alphabet characters in UPPERCASE (excluding: I, O, Q, U)
+            'A', 'B', 'D', 'C', 'E', 'F', 'G', 'H', 'J',
             'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T',
-            'U', 'V', 'W', 'X', 'Y', 'Z',
-            // Alphabet characters in lowercase (exclude: e, f, i, l, o, p, y, z)
-            'a', 'b', 'c', 'd', 'g', 'h', 'j',
+            'V', 'W', 'X', 'Y', 'Z',
+            // Alphabet characters in lowercase (excluding: e, i, l, o, u, z)
+            'a', 'b', 'c', 'd', 'f', 'g', 'h', 'j',
             'k', 'm', 'n', 'q', 'r', 's', 't',
-            'u', 'v', 'w', 'x'
+            'v', 'w', 'x', 'y'
         ],
-        // Normal challenge
-        [
-            // Digits (exclude: 0)
-            '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            // Alphabet characters in UPPERCASE (exclude: I, O, Q)
-            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J',
-            'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T',
-            'U', 'V', 'W', 'X', 'Y', 'Z',
-            // Alphabet characters in lowercase (exclude: e, l, z)
-            'a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j',
-            'k', 'm', 'n', 'o', 'q', 'r', 's', 't',
-            'u', 'v', 'w', 'x', 'y'
-        ],
-        // Hard challenge
+        // Hard
         [
             // Some non-word characters
             '#', ')', '*', '+', '.', '/', ';', '=', '?', '_',
@@ -49,42 +49,48 @@ class StringCaptcha extends Captcha
         ]
     ];
 
-    private $character_set;
-    private $max_character_set_index;
-
-    public function __construct(int $size = 3, int $difficulty = 1)
-    {
-        parent::__construct($size, $difficulty);
-
-        $this->character_set = self::CHARACTER_MAP[$this->difficulty];
-        $this->max_character_set_index = count($this->character_set) - 1;
-    }
-
     /**
+     * @var array set of characters to generate captcha challenge from.
      * @see StringCaptcha::CHARACTER_MAP
      */
-    public function createChallenge()
+    private $characters;
+    /**
+     * @var int the last index of the character array.
+     */
+    private $characters_last_index;
+
+    public function __construct(int $size = 3, int $level = 1)
+    {
+        parent::__construct($size, $level);
+        $this->characters = self::CHARACTER_MAP[$this->level];
+        $this->characters_last_index = count($this->characters) - 1;
+    }
+
+    public function generate()
     {
         $this->challenge = '';
         for ($i = 0; $i < $this->size; $i++) {
-            $this->challenge .= $this->getRandomCharacter();
+            $this->challenge .= $this->randomCharacter();
         }
 
         return $this;
     }
 
-    private function getRandomCharacter(): string
+    private function randomCharacter(): string
     {
-        return $this->character_set[mt_rand(0, $this->max_character_set_index)];
+        return $this->characters[mt_rand(0, $this->characters_last_index)];
     }
 
-    public function getResolvedValue()
+    public function resolve(): string
     {
-        return $this->challenge;
+        // Though method's return type is set,
+        // the return value is implicitly converted here.
+        // __toString()
+        return (string)$this;
     }
 
-    public static function test(string $challenge, string $input_value): bool
+    public static function resolveString(string $string): string
     {
-        return $challenge === $input_value;
+        return $string;
     }
 }
