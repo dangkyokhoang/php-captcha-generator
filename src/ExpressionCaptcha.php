@@ -172,7 +172,7 @@ class ExpressionCaptcha extends Captcha
         $this->expression['value'] += $group['value'];
     }
 
-    public function solve(): int
+    public function solve(): string
     {
         return $this->expression ?
             $this->expression['value'] :
@@ -182,9 +182,9 @@ class ExpressionCaptcha extends Captcha
     /**
      * Parse and evaluate string expression without using eval().
      * @param string $string
-     * @return int|double expression's evaluated value or 0 on error.
+     * @return string expression's evaluated value or 0 on error.
      */
-    public static function solveString(string $string)
+    public static function solveString(string $string): string
     {
         $operator_pattern = '[';
         foreach ([
@@ -244,7 +244,7 @@ class ExpressionCaptcha extends Captcha
                 -$numbers[$i + 1];
         }
 
-        // int|double $solved_value
+        // (string) $solved_value
         return $solved_value;
     }
 }
