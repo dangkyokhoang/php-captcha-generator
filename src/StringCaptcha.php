@@ -81,15 +81,12 @@ class StringCaptcha extends Captcha
         return $this->characters[mt_rand(0, $this->characters_last_index)];
     }
 
-    public function resolve(): string
+    public function solve(): string
     {
-        // Though method's return type is set,
-        // the return value is implicitly converted here.
-        // __toString()
-        return (string)$this;
+        return $this->challenge ?: $this->generate()->challenge;
     }
 
-    public static function resolveString(string $string): string
+    public static function solveString(string $string): string
     {
         return $string;
     }

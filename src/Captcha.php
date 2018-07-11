@@ -217,13 +217,13 @@ abstract class Captcha
     abstract public function generate();
 
     /**
-     * @return mixed challenge's resolved value.
+     * @return mixed challenge's solved value.
      */
-    abstract public function resolve();
+    abstract public function solve();
 
     /**
      * @param string $string
-     * @return mixed captcha challenge's resolved value.
+     * @return mixed captcha challenge's solved value.
      */
-    abstract public static function resolveString(string $string);
+    abstract public static function solveString(string $string);
 }

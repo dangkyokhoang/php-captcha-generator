@@ -14,10 +14,10 @@ class ExpressionCaptchaTest extends TestCase
     public function testCreationAssertion()
     {
         /**
-         * If eval() is enabled, ExpressionCaptcha::resolveString() can be tested
+         * If eval() is enabled, ExpressionCaptcha::solveString() can be tested
          * Note that disabling eval() will only affect this test,
-         *  since ExpressionCaptcha::resolveString() should always work without using eval().
-         * @see ExpressionCaptcha::resolveString()
+         *  since ExpressionCaptcha::solveString() should always work without using eval().
+         * @see ExpressionCaptcha::solveString()
          *
          * @var boolean that tells whether eval() is enabled.
          * */
@@ -41,14 +41,14 @@ class ExpressionCaptchaTest extends TestCase
             // __toString()
             $this->assertEquals($size, (strlen($captcha) + 1) / 2);
 
-            // Test ExpressionCaptcha::resolveString()
-            $resolved_value = $captcha->resolve();
+            // Test ExpressionCaptcha::solveString()
+            $solved_value = $captcha->solve();
             // __toString()
-            $this->assertEquals($resolved_value, ExpressionCaptcha::resolveString($captcha));
+            $this->assertEquals($solved_value, ExpressionCaptcha::solveString($captcha));
             if ($eval_enabled) {
                 // Convert expression's operators to PHP equivalent operators
                 $php_expression = str_replace($expression_operators, $php_operators, $captcha);
-                $this->assertEquals(eval("return $php_expression;"), $resolved_value);
+                $this->assertEquals(eval("return $php_expression;"), $solved_value);
             }
         }
     }

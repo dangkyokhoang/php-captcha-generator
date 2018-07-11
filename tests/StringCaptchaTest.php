@@ -37,10 +37,10 @@ class StringCaptchaTest extends TestCase
             // __toString()
             $this->assertRegExp($challenge_patterns[$level], $captcha);
 
-            // Test StringCaptcha::resolveString()
-            $resolved_value = $captcha->resolve();
+            // Test StringCaptcha::solveString()
+            $solved_value = $captcha->solve();
             // __toString()
-            $this->assertEquals($resolved_value, StringCaptcha::resolveString($captcha));
+            $this->assertEquals($solved_value, StringCaptcha::solveString($captcha));
         }
     }
 
